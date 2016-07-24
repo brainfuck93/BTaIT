@@ -29,14 +29,20 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-
+/**
+ * Info:
+ *
+ * Valid example of a QR-Code containing all the data for the Material relation:
+ * DIK_INS_Mat;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;1;654321
+ *
+ * QR-Code must not contain semicolons except for the purpose of separation of values!
+ */
 public class MainActivity extends AppCompatActivity {
 
 
     // ---- Variable input ----
     // Url of the server to connect to. RPi has static ip of 192.168.1.100
-    private String url = "http://192.168.100.56/index.php";
-
+    private String url = "http://192.168.1.100/index.php";
     // ---- Variable input over ----
 
     // Permission request codes used for the permission system in Android 6.0+
@@ -46,8 +52,33 @@ public class MainActivity extends AppCompatActivity {
     private TextView outputLog;
     private SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss", Locale.GERMANY);
 
-    // Global variable test area (this should be empty if this is a release
-    // Test area over -----------------------------------------------------
+    // Global variables
+    /**
+     * Represents the parts of the insert query values.
+     * Index    Meaning
+     *
+     *  0       Bezeichnung
+     *  1       Lieferant
+     *  2       Werkstoff
+     *  3       Variante
+     *  4       Kosten_pro_Meter
+     *  5       Menge
+     *  6       Gewicht
+     *  7       Lieferdatum
+     *  8       Position
+     *  9       Auftragsnummer
+     */
+    String[] insertQueryContent;
+    /**
+     * Represents the ready parts of the query
+     * Query so far consits of parts:
+     * 1. Material was scanned
+     * 2. Position was scanned
+     * */
+
+
+    // Global variable test area (this should be empty if this is a release -------
+    // Test area over -------------------------------------------------------------
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,8 +86,99 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         outputLog = (TextView) findViewById(R.id.outputLog);
         log("Application started");
+
+        insertQueryContent = new String[10];
+        for (String c: insertQueryContent) {
+            c = "";
+        }
     }
 
+    /**
+     * Called when a QR-Code was scanned and recognized. Saves the contained information in a global array. If the
+     * information needed is all set, it starts a POST request to transmit the query to the server.
+     *
+     * The QR-Code contains the values for the query as Strings, separated by Semicolons. Typecast and parsing
+     * will be done by the server later.
+     *
+     * QR-Code must not contain semicolons except for the purpose of separation of values! Possible status-codes
+     * (which have to be put as first value of the QR-Code):
+     *
+     * DIK_INS_Mat:         Scan all values for insertQuery (Material and Position)
+     *
+     * Amount of parameters:                    11
+     * Valid example of query values:           "'QR-Stange', 1, 'QR-Stoff', 'DEF', 14.88, 17.00, 200, '2016-07-03', 1, 654321);"
+     * Types of the query values:                    Str      Num     Str       Str    dec    dec   num      date     num   num
+     * Valid example of a QR-Code:              DIK_INS_Mat;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;1;654321
+     *
+     *
+     * DIK_INS_Mat_Mat:     Scan Material
+     *
+     * Amount of parameters:                    10
+     * Valid example of a QR-Code:              DIK_INS_Mat_Mat;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;654321
+     *
+     *
+     * DIK_INS_Mat_Pos:      Scan Position
+     *
+     * Amount of parameters:                    2
+     * Valid example of a QR-Code:              DIK_INS_Mat_Pos;2
+     *
+     * @param content Textual representation of the QR-Code
+     */
+    private void handleQRCodeInput(String content) {
+        log("QR-Code wurde gescannt");
+        //log("Der Inhalt ist: " + content);
+
+        String[] queryContents = content.split(";");
+        if (queryContents.length == 10 && queryContents[0].equals("DIK_INS_Mat_Mat")) {
+
+            log("Material erkannt, speichere Materialinfos.");
+
+            // Save parameters
+            for (int i = 0; i < 8; ++i)
+                insertQueryContent[i] = queryContents[i+1];
+            insertQueryContent[9] = queryContents[9];
+        } else if (queryContents.length == 2 && queryContents[0].equals("DIK_INS_Mat_Pos")) {
+
+            log("Position erkannt, speichere Positionsinfos.");
+            insertQueryContent[8] = queryContents[1];
+        } else if (queryContents.length == 11 && queryContents[0].equals("DIK_INS_Mat")) {
+
+            log("Test QR-Code erkannt, speichere alle nötigen Infos.");
+            for (int i = 0; i < 10; ++i)
+                insertQueryContent[i] = queryContents[i+1];
+        }
+
+        // Check if query is complete
+        boolean doQuery = true;
+        for (String c: insertQueryContent)
+            if (c == null || c.equals(""))
+                doQuery = false;
+
+        if (doQuery) {
+            String insertQuery = "INSERT INTO Material (Bezeichnung, Lieferant, Werkstoff, Variante, Kosten_pro_Meter, Menge, Gewicht, Lieferdatum, Position, Auftragsnummer) VALUES (";
+            insertQuery += "'" + insertQueryContent[0] + "', " + insertQueryContent[1] + ", '" + insertQueryContent[2] + "', '" + insertQueryContent[3] + "', " + insertQueryContent[4] + ", " + insertQueryContent[5] + ", " + insertQueryContent[6] + ", '" + insertQueryContent[7] + "', " + insertQueryContent[8] + ", " + insertQueryContent[9] + ");";
+
+            log("Alle nötigen Infos gesammelt. Führe query aus und lösche Zwischenspeicher.");
+            for (int i = 0; i < insertQueryContent.length; ++i)
+                insertQueryContent[i] = "";
+
+            // Encode query as URL
+            String encodedQuery = "";
+            try {
+                encodedQuery = URLEncoder.encode(insertQuery, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                log("Encoding der URL für POST request gescheitert");
+            }
+            encodedQuery = "query=" + encodedQuery;
+
+            // Do POST request
+            doPostRequest("id=1337&" + encodedQuery);
+        }
+    }
+
+    /**
+     * Triggered by UI Button. Initiates the barcode scanning.
+     */
     public void doScanBarcode(View view) {
         IntentIntegrator scanIntegrator = new IntentIntegrator(this);
         scanIntegrator.initiateScan();
@@ -263,6 +385,7 @@ public class MainActivity extends AppCompatActivity {
                 conn.setRequestMethod("GET");
                 conn.setDoInput(true);
                 // Starts the query
+                publishProgress("fullurl:" + fullUrl);
                 conn.connect();
                 int response = conn.getResponseCode();
                 updateMsg += sdf.format(new Date()) + " The response code is: " + response + "\n";
@@ -338,45 +461,27 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Method that the data from barcode scanning is beeing returned to.
-     * @param requestCode
-     * @param resultCode
-     * @param intent
+     * @param requestCode contains the request code used when the activity was triggered
+     * @param resultCode parsed by ZXing's IntentIntegrator to get the QR-Code content
+     * @param intent Intent used to transfer the data.
      */
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
+
+        // Check for barcodes with ZXing
         IntentResult scanningResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent);
         if (scanningResult != null && scanningResult.getContents() != null && scanningResult.getFormatName() != null) {
             // We have a result
             String scanContent = scanningResult.getContents();
             String scanFormat = scanningResult.getFormatName();
-            log(scanFormat + " wurde gescannt");
-            log("Der Inhalt ist: " + scanContent);
 
             if (scanFormat.equals("QR_CODE")) {
-                String[] queryContents = scanContent.split(";");
-                if (queryContents.length == 11 && queryContents[0].equals("DIK_INS_Mat")) {
-
-                    log("Insert Material Query in QR_CODE erkannt");
-                    log("Query wird zum Server gesendet");
-
-                    // Form des QR-Codes muss so sein: "'Teststange', 1, 'Teststoff', 'ABC', 13.77, 16.00, 100, '2016-06-17', 2, 123456);"
-                    //                                      Str      Num     Str       Str    dec    dec   num      date     num   num
-                    // Der QR-Code darf keine Semikolons enthalten bis auf die Trennzeichen!!!
-                    // Bspw. also: DIK_INS_Mat;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;1;654321
-                    String insertQuery = "INSERT INTO Material (Bezeichnung, Lieferant, Werkstoff, Variante, Kosten_pro_Meter, Menge, Gewicht, Lieferdatum, Position, Auftragsnummer) VALUES (";
-                    insertQuery += "'" + queryContents[1] + "', " + queryContents[2] + ", '" + queryContents[3] + "', '" + queryContents[4] + "', " + queryContents[5] + ", " + queryContents[6] + ", " + queryContents[7] + ", '" + queryContents[8] + "', " + queryContents[9] + ", " + queryContents[10] + ");";
-
-                    String encodedQuery = "";
-                    try {
-                        encodedQuery = URLEncoder.encode(insertQuery, "UTF-8");
-                    } catch (UnsupportedEncodingException e) {
-                        log("Encoding of URL for POST request failed");
-                    }
-                    encodedQuery = "query=" + encodedQuery;
-                    doPostRequest("id=1337&" + encodedQuery);
-                }
+                handleQRCodeInput(scanContent);
+            } else {
+                log("Nicht unterstütztes Format: " + scanFormat);
             }
+
         } else{
-            log("Es konnte nichts gescannt werden");
+            log("Es konnte nichts gescannt werden.");
         }
     }
 }
