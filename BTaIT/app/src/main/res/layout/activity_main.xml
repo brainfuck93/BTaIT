@@ -13,34 +13,33 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <Button
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/test_connection_button"
-                android:id="@+id/buttonRetry"
-                android:onClick="testGetRequest"/>
-            <Button
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/insert_material_button"
-                android:id="@+id/buttonRequest"
-                android:onClick="testPostRequest"/>
-
-        </LinearLayout>
+        android:orientation="vertical"
+        android:gravity="center">
 
         <Button
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/scan_barcode_button"
+            android:text="@string/bt_test_connection"
+            android:id="@+id/buttonRetry"
+            android:onClick="testGetRequest"/>
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/bt_scan_insert"
+            android:id="@+id/buttonRequest"
+            android:paddingLeft="38dp"
+            android:paddingRight="38dp"
+            android:onClick="scanBarcodeInsert"/>
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/bt_scan_remove"
             android:id="@+id/buttonScan"
-            android:onClick="doScanBarcode"/>
+            android:paddingRight="35dp"
+            android:paddingLeft="35dp"
+            android:onClick="scanBarcodeRemove"/>
 
     </LinearLayout>
 
