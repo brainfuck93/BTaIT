@@ -30,19 +30,20 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * Info:
+ * Genera info:
  *
- * Valid example of a QR-Code containing all the data for the Material relation:
- * DIK_INS_Mat;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;1;654321
+ * When communicating with the server, the server expects an id. The id is something like an opcode to
+ * the server. Currently the server knows two id. id=42 means a GET-Request is coming. id=1337 however
+ * suggests a POST-request containing a query to be run on the server.
  *
- * QR-Code must not contain semicolons except for the purpose of separation of values!
+ * The QR-Code must not contain semicolons except for the purpose of separation of values!
  */
 public class MainActivity extends AppCompatActivity {
 
 
     // ---- Variable input ----
     // Url of the server to connect to. RPi has static ip of 192.168.1.100
-    private String url = "http://192.168.1.100/index.php";
+    private String url = "http://192.168.2.113/index.php";
     // ---- Variable input over ----
 
     // Permission request codes used for the permission system in Android 6.0+
@@ -69,12 +70,6 @@ public class MainActivity extends AppCompatActivity {
      *  9       Auftragsnummer
      */
     String[] insertQueryContent;
-    /**
-     * Represents the ready parts of the query
-     * Query so far consits of parts:
-     * 1. Material was scanned
-     * 2. Position was scanned
-     * */
 
 
     // Global variable test area (this should be empty if this is a release -------
@@ -103,46 +98,51 @@ public class MainActivity extends AppCompatActivity {
      * QR-Code must not contain semicolons except for the purpose of separation of values! Possible status-codes
      * (which have to be put as first value of the QR-Code):
      *
-     * DIK_INS_Mat:         Scan all values for insertQuery (Material and Position)
+     * DIK_INS_Mat:         Scan all values for insertQuery (Material and Position). Mainly for test purposes.
      *
      * Amount of parameters:                    11
-     * Valid example of query values:           "'QR-Stange', 1, 'QR-Stoff', 'DEF', 14.88, 17.00, 200, '2016-07-03', 1, 654321);"
-     * Types of the query values:                    Str      Num     Str       Str    dec    dec   num      date     num   num
-     * Valid example of a QR-Code:              DIK_INS_Mat;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;1;654321
+     * Valid example of query values:           'QR-Stange', 1, 'QR-Stoff', 'DEF', 14.88, 17.00, 200, '2016-07-03', 1, 654321
+     * Types of the query values:                    Str    Num     Str      Str    dec    dec   num      date     num  num
+     * Valid example of a QR-Code:              strings/qr_mat_and_pos_code;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;1;654321
      *
      *
      * DIK_INS_Mat_Mat:     Scan Material
      *
      * Amount of parameters:                    10
-     * Valid example of a QR-Code:              DIK_INS_Mat_Mat;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;654321
+     * Valid example of a QR-Code:              strings/qr_material_code;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;654321
      *
      *
      * DIK_INS_Mat_Pos:      Scan Position
      *
      * Amount of parameters:                    2
-     * Valid example of a QR-Code:              DIK_INS_Mat_Pos;2
+     * Valid example of a QR-Code:              strings/qr_position_code;2
      *
      * @param content Textual representation of the QR-Code
      */
     private void handleQRCodeInput(String content) {
         log("QR-Code wurde gescannt");
-        //log("Der Inhalt ist: " + content);
 
         String[] queryContents = content.split(";");
-        if (queryContents.length == 10 && queryContents[0].equals("DIK_INS_Mat_Mat")) {
 
+        if (queryContents.length == 10 && queryContents[0].equals(getString(R.string.qr_material_code))) {
+
+            // We recognized a material
             log("Material erkannt, speichere Materialinfos.");
 
             // Save parameters
             for (int i = 0; i < 8; ++i)
                 insertQueryContent[i] = queryContents[i+1];
             insertQueryContent[9] = queryContents[9];
-        } else if (queryContents.length == 2 && queryContents[0].equals("DIK_INS_Mat_Pos")) {
 
+        } else if (queryContents.length == 2 && queryContents[0].equals(getString(R.string.qr_position_code))) {
+
+            // We recognized a position
             log("Position erkannt, speichere Positionsinfos.");
             insertQueryContent[8] = queryContents[1];
-        } else if (queryContents.length == 11 && queryContents[0].equals("DIK_INS_Mat")) {
 
+        } else if (queryContents.length == 11 && queryContents[0].equals(getString(R.string.qr_mat_and_pos_code))) {
+
+            // We recognized all data at once (probably this is a test Case)
             log("Test QR-Code erkannt, speichere alle nötigen Infos.");
             for (int i = 0; i < 10; ++i)
                 insertQueryContent[i] = queryContents[i+1];
@@ -377,7 +377,6 @@ public class MainActivity extends AppCompatActivity {
                 String fullUrl = myurl + "?" + getParams;
                 String updateMsg = sdf.format(new Date()) + " Trying to reach " + fullUrl + "\n";
 
-
                 URL url = new URL(fullUrl);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setReadTimeout(10000 /* milliseconds */);
@@ -385,7 +384,6 @@ public class MainActivity extends AppCompatActivity {
                 conn.setRequestMethod("GET");
                 conn.setDoInput(true);
                 // Starts the query
-                publishProgress("fullurl:" + fullUrl);
                 conn.connect();
                 int response = conn.getResponseCode();
                 updateMsg += sdf.format(new Date()) + " The response code is: " + response + "\n";

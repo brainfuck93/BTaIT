@@ -3,4 +3,7 @@
     <string name="insert_material_button">Material adden</string>
     <string name="test_connection_button">Verbindungstest</string>
     <string name="scan_barcode_button">Barcode scannen</string>
+    <string name="qr_material_code">DIK_Mat</string>
+    <string name="qr_position_code">DIK_Pos</string>
+    <string name="qr_mat_and_pos_code">DIK_Ins_everything</string>
 </resources>
