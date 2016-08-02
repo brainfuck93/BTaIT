@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
 
     // ---- Variable input ----
     // Url of the server to connect to. RPi has static ip of 192.168.1.100
-    private String url = "http://192.168.2.113/index.php";
+    private String url = "http://192.168.100.56/index.php";
     // ---- Variable input over ----
 
     // Permission request codes used for the permission system in Android 6.0+
@@ -72,12 +72,14 @@ public class MainActivity extends AppCompatActivity {
     String[] queryContent;
 
     /**
-     * Decides what to do with a material if we scan it. If insertMode is true we will add the material
-     * to the queryContent (and if queryContent is full do the query). In the other case
+     * Decides what to do with a material if we scan it. If appMode is INSERT we will add the material
+     * to the queryContent (and if queryContent is full, do the query). In case appMode is DELETE
      * we will look for a material with the same Auftragsnummer as the scanned object and delete it from
-     * the database.
+     * the database. If appMode is TRANSFER we will look for a Material with the same Auftragsnummer as
+     * the scanned one and update its position to a new scanned position.
      */
-    boolean insertMode = true;
+    public enum AppMode {INSERT, REMOVE, TRANSFER}
+    AppMode appMode = AppMode.INSERT;
 
 
     // Global variable test area (this should be empty if this is a release -------
@@ -91,6 +93,14 @@ public class MainActivity extends AppCompatActivity {
         log("Application started");
 
         queryContent = new String[10];
+        initializeQueryInfo();
+    }
+
+    /**
+     * Initializes every String of the queryContent Variable with an empty String. If the variable is
+     * already initialized, it deletes the information that was stored before.
+     */
+    private void initializeQueryInfo() {
         for (String c: queryContent) {
             c = "";
         }
@@ -130,70 +140,72 @@ public class MainActivity extends AppCompatActivity {
     private void handleQRCodeInput(String content) {
         log("QR-Code wurde gescannt");
 
-        String[] queryContents = content.split(";");
+        String[] queryContents = content.split(";");    // Values of the QR-Code to be put in query
+        String query = "";                              // String to contain the query
+        boolean doQuery = true;                         // Is a query necessary? To be initialized with true.
 
-        if (queryContents.length == 10 && queryContents[0].equals(getString(R.string.qr_material_code))) {
+        // -------------------------- INSERT MODE -------------------------
+        if (appMode == AppMode.INSERT) {
 
-            // We recognized a material, check if we should save or delete the material
-            if (insertMode) {
+            // Parse the QR-Code inputs and fill the global queryContent
+            if (queryContents.length == 10 && queryContents[0].equals(getString(R.string.qr_material_code))) {
+                // We recognized a material
                 log("Material erkannt, speichere Materialinfos.");
-
                 // Save parameters
                 for (int i = 0; i < 8; ++i)
                     queryContent[i] = queryContents[i + 1];
                 queryContent[9] = queryContents[9];
+            } else if (queryContents.length == 2 && queryContents[0].equals(getString(R.string.qr_position_code))) {
+                // We recognized a position
+                log("Position erkannt, speichere Positionsinfos.");
+                queryContent[8] = queryContents[1];
+            } else if (queryContents.length == 11 && queryContents[0].equals(getString(R.string.qr_mat_and_pos_code))) {
+                // We recognized all data at once (probably this is a test Case)
+                log("Test QR-Code erkannt, speichere alle nötigen Infos.");
+                for (int i = 0; i < 10; ++i)
+                    queryContent[i] = queryContents[i+1];
             } else {
-                log("Material erkannt, lösche Material aus Datenbank");
-                queryContent[9] = queryContents[9];
+                // No case matched. Something wrong with the QR-Code.
+                log("Es wurde nichts unternommen. Ungültiger QR-Code?");
             }
 
-        } else if (insertMode && queryContents.length == 2 && queryContents[0].equals(getString(R.string.qr_position_code))) {
+            // Check if all information for an insert query is complete. If so, create the query.
+            for (String c: queryContent)
+                if (c == null || c.equals(""))
+                    doQuery = false;
+            if (doQuery) {
+                query = "INSERT INTO Material (Bezeichnung, Lieferant, Werkstoff, Variante, Kosten_pro_Meter, Menge, Gewicht, Lieferdatum, Position, Auftragsnummer) VALUES (";
+                query += "'" + queryContent[0] + "', " + queryContent[1] + ", '" + queryContent[2] + "', '" + queryContent[3] + "', " + queryContent[4] + ", " + queryContent[5] + ", " + queryContent[6] + ", '" + queryContent[7] + "', " + queryContent[8] + ", " + queryContent[9] + ");";
 
-            // We recognized a position
-            log("Position erkannt, speichere Positionsinfos.");
-            queryContent[8] = queryContents[1];
+                log("Alle nötigen Infos gesammelt. Führe insert query aus und lösche Zwischenspeicher.");
+                initializeQueryInfo();
+            }
 
-        } else if (insertMode && queryContents.length == 11 && queryContents[0].equals(getString(R.string.qr_mat_and_pos_code))) {
+        // -------------------------- REMOVE MODE -------------------------
+        } else if (appMode == AppMode.REMOVE) {
 
-            // We recognized all data at once (probably this is a test Case)
-            log("Test QR-Code erkannt, speichere alle nötigen Infos.");
-            for (int i = 0; i < 10; ++i)
-                queryContent[i] = queryContents[i+1];
-        } else {
-            log("Es wurde nichts unternommen. Ungültiger QR-Code?");
+            // Parse query information for removal and fill the global queryContent variable
+            if (queryContents.length == 10 && queryContents[0].equals(getString(R.string.qr_material_code))) {
+                // Material recognized
+                log("Material erkannt, speichere zu löschendes Material");
+                queryContent[9] = queryContents[9];
+            } else {
+                // No case matched. Something wrong with the QR-Code.
+                log("Es wurde nichts unternommen. Ungültiger QR-Code?");
+            }
+
+            // Check if all information for a delete query is complete. If so, create the query.
+            if (queryContent[9] == null || queryContent[9].equals("")) {
+                doQuery = false;
+            } else {
+                query = "DELETE FROM Material WHERE Auftragsnummer = '" + queryContent[9] + "';";
+                log("Lösche Material aus Datenbank");
+                initializeQueryInfo();
+            }
         }
 
-        String query = "";
-
-        // Check if insert query is complete
-        boolean doInsertQuery = true;
-        for (String c: queryContent)
-            if (c == null || c.equals(""))
-                doInsertQuery = false;
-
-        if (doInsertQuery) {
-            String insertQuery = "INSERT INTO Material (Bezeichnung, Lieferant, Werkstoff, Variante, Kosten_pro_Meter, Menge, Gewicht, Lieferdatum, Position, Auftragsnummer) VALUES (";
-            insertQuery += "'" + queryContent[0] + "', " + queryContent[1] + ", '" + queryContent[2] + "', '" + queryContent[3] + "', " + queryContent[4] + ", " + queryContent[5] + ", " + queryContent[6] + ", '" + queryContent[7] + "', " + queryContent[8] + ", " + queryContent[9] + ");";
-
-            log("Alle nötigen Infos gesammelt. Führe insert query aus und lösche Zwischenspeicher.");
-            for (int i = 0; i < queryContent.length; ++i)
-                queryContent[i] = "";
-            query = insertQuery;
-        }
-
-        // Check if delete query is complete
-        boolean doDeleteQuery = true;
-        if (insertMode || queryContent[9] == null || queryContent[9].equals("")) {
-            doDeleteQuery = false;
-        } else {
-            doDeleteQuery = true;
-            query = "DELETE FROM Material WHERE Auftragsnummer = '" + queryContent[9] + "';";
-            log("Lösche Material aus Datenbank");
-            queryContent[9] = "";
-        }
-
-        // If either of the query flags is true
-        if (doDeleteQuery || doInsertQuery) {
+        // If a query is ready to be done
+        if (doQuery) {
 
             // Encode query as URL
             String encodedQuery = "";
@@ -213,7 +225,8 @@ public class MainActivity extends AppCompatActivity {
      * Triggered by UI Button. Initiates the barcode scanning for insertion.
      */
     public void scanBarcodeInsert(View view) {
-        insertMode = true;
+        if (appMode != AppMode.INSERT) initializeQueryInfo();
+        appMode = AppMode.INSERT;
         IntentIntegrator scanIntegrator = new IntentIntegrator(this);
         scanIntegrator.initiateScan();
     }
@@ -222,7 +235,18 @@ public class MainActivity extends AppCompatActivity {
      * Triggered by UI Button. Initiates the barcode scanning for removal (of material).
      */
     public void scanBarcodeRemove(View view) {
-        insertMode = false;
+        if (appMode != AppMode.REMOVE) initializeQueryInfo();
+        appMode = AppMode.REMOVE;
+        IntentIntegrator scanIntegrator = new IntentIntegrator(this);
+        scanIntegrator.initiateScan();
+    }
+
+    /**
+     * Triggered by UI Button. Initiates the barcode scanning for transfer (of material).
+     */
+    public void scanBarcodeTransfer(View view) {
+        if (appMode != AppMode.TRANSFER) initializeQueryInfo();
+        appMode = AppMode.REMOVE;
         IntentIntegrator scanIntegrator = new IntentIntegrator(this);
         scanIntegrator.initiateScan();
     }
