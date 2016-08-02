@@ -169,7 +169,7 @@ public class MainActivity extends AppCompatActivity {
                 log("Es wurde nichts unternommen. Ungültiger QR-Code?");
             }
 
-            // Check if all information for an insert query is complete. If so, create the query.
+            // Check if all information for an INSERT query is complete. If so, create the query.
             for (String c: queryContent)
                 if (c == null || c.equals(""))
                     doQuery = false;
@@ -194,12 +194,42 @@ public class MainActivity extends AppCompatActivity {
                 log("Es wurde nichts unternommen. Ungültiger QR-Code?");
             }
 
-            // Check if all information for a delete query is complete. If so, create the query.
+            // Check if all information for a DELETE query is complete. If so, create the query.
             if (queryContent[9] == null || queryContent[9].equals("")) {
                 doQuery = false;
             } else {
-                query = "DELETE FROM Material WHERE Auftragsnummer = '" + queryContent[9] + "';";
+                query = "DELETE FROM Material WHERE Auftragsnummer = " + queryContent[9] + ";";
                 log("Lösche Material aus Datenbank");
+                initializeQueryInfo();
+            }
+
+        // -------------------------- TRANSFER MODE -------------------------
+        } else if (appMode == AppMode.TRANSFER) {
+
+            // Parse the QR-Code inputs and fill the global queryContent
+            if (queryContents.length == 10 && queryContents[0].equals(getString(R.string.qr_material_code))) {
+                // We recognized a material
+                log("Material erkannt, speichere Materialinfos.");
+                // Save parameters
+                for (int i = 0; i < 8; ++i)
+                    queryContent[i] = queryContents[i + 1];
+                queryContent[9] = queryContents[9];
+            } else if (queryContents.length == 2 && queryContents[0].equals(getString(R.string.qr_position_code))) {
+                // We recognized a position
+                log("Position erkannt, speichere Positionsinfos.");
+                queryContent[8] = queryContents[1];
+            } else {
+                // No case matched. Something wrong with the QR-Code.
+                log("Es wurde nichts unternommen. Ungültiger QR-Code?");
+            }
+
+            // Check if all information for an UPDATE query is complete. If so, create the query.
+            for (String c: queryContent)
+                if (c == null || c.equals(""))
+                    doQuery = false;
+            if (doQuery) {
+                query = "UPDATE Material SET Position = " + queryContent[8] + " WHERE Auftragsnummer = " + queryContent[9] + ";";
+                log("Position von Material wird aktualisiert");
                 initializeQueryInfo();
             }
         }
@@ -246,7 +276,7 @@ public class MainActivity extends AppCompatActivity {
      */
     public void scanBarcodeTransfer(View view) {
         if (appMode != AppMode.TRANSFER) initializeQueryInfo();
-        appMode = AppMode.REMOVE;
+        appMode = AppMode.TRANSFER;
         IntentIntegrator scanIntegrator = new IntentIntegrator(this);
         scanIntegrator.initiateScan();
     }
