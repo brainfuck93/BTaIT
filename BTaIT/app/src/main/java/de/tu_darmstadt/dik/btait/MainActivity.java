@@ -34,7 +34,9 @@ import java.util.Locale;
  *
  * When communicating with the server, the server expects an id. The id is something like an opcode to
  * the server. Currently the server knows two id. id=42 means a GET-Request is coming. id=1337 however
- * suggests a POST-request containing a query to be run on the server.
+ * suggests a POST-request containing a query to be run on the server. id=1338 means a POST request
+ * where an answer that is processed by machines is expected (This means machine-friendly communication
+ * and very few error or debug messages).
  *
  * The QR-Code must not contain semicolons except for the purpose of separation of values!
  */
@@ -72,6 +74,18 @@ public class MainActivity extends AppCompatActivity {
     String[] queryContent;
 
     /**
+     * Every device has its own position ID for the TRANSFER-UseCase. When transferring a material, a
+     * request gets sent to the database, changing the position of the material to the device's ID.
+     */
+    int ownPositionId = 0;
+
+    /**
+     * This is the storage for a machine-friendly answer from the server, when a POST request was sent
+     * that requires an answer (id=1338). It should be cleared before every use.
+     */
+    String postRequestAnswer;
+
+    /**
      * Decides what to do with a material if we scan it. If appMode is INSERT we will add the material
      * to the queryContent (and if queryContent is full, do the query). In case appMode is DELETE
      * we will look for a material with the same Auftragsnummer as the scanned object and delete it from
@@ -94,6 +108,36 @@ public class MainActivity extends AppCompatActivity {
 
         queryContent = new String[10];
         initializeQueryInfo();
+    }
+
+    private void initializePositionId() {
+
+        // First we look if a position Id was stored in the devices memory already.
+        if (tryGetPositionIdFromDisk())
+            return;
+
+        // If not, we get a new ID from the database
+        String encodedQuery = "SELECT MAX(ID) FROM Lagerposition;";
+        try {
+            encodedQuery = URLEncoder.encode(encodedQuery, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            log("Error with encoding the query for initializing own position id");
+        }
+        postRequestAnswer = "";
+        doPostRequest("id=1338&query=" + encodedQuery);
+        int maxId = 0;
+        try {
+            maxId = Integer.valueOf(postRequestAnswer) + 1;
+            ownPositionId = maxId;
+            log("Successfully got position id from server (ownID=" + ownPositionId + ")");
+        } catch (Exception e) {
+            log("Getting position id failed. Please check the network connection or try again later");
+        }
+    }
+
+    private boolean tryGetPositionIdFromDisk() {
+        if (false) return true;
+        else return false;
     }
 
     /**
