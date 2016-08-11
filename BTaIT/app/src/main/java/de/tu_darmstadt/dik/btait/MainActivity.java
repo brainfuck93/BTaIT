@@ -4,6 +4,7 @@ import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -110,10 +111,15 @@ public class MainActivity extends AppCompatActivity {
         initializeQueryInfo();
     }
 
+    /**
+     * Initializes the ownPositionId attribute. First the method checks if an ID has been stored on
+     * the disk already and tries to retrieve that. If no ID can be found, an ID is request from the
+     * server using a POST request.
+     */
     private void initializePositionId() {
 
         // First we look if a position Id was stored in the devices memory already.
-        if (tryGetPositionIdFromDisk())
+        if (ownPositionId != 0 || tryGetPositionIdFromDisk())
             return;
 
         // If not, we get a new ID from the database
@@ -129,15 +135,27 @@ public class MainActivity extends AppCompatActivity {
         try {
             maxId = Integer.valueOf(postRequestAnswer) + 1;
             ownPositionId = maxId;
-            log("Successfully got position id from server (ownID=" + ownPositionId + ")");
+            SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPref.edit();
+            editor.putInt("ownPositionId",ownPositionId);
+            editor.apply();
+            log("Successfully got position id from server (ownID=" + ownPositionId + ") and wrote it to disk");
         } catch (Exception e) {
             log("Getting position id failed. Please check the network connection or try again later");
         }
     }
 
+    /**
+     * Tries to get a stored ownPositionId from the disk.
+     * @return true, if a ownPositionId can be retrieved from disk. false in the other case.
+     */
     private boolean tryGetPositionIdFromDisk() {
-        if (false) return true;
-        else return false;
+        SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+        if (sharedPref.contains("ownPositionId")) {
+            ownPositionId = sharedPref.getInt("ownPositionId", -1);
+            return true;
+        } else
+            return false;
     }
 
     /**
