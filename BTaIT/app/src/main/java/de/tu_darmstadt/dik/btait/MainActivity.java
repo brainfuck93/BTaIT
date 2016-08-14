@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
      * the database. If appMode is TRANSFER we will look for a Material with the same Auftragsnummer as
      * the scanned one and update its position to ownPositionId.
      */
-    public enum AppMode {INSERT, REMOVE, TRANSFER}
+    public enum AppMode {INSERT, REMOVE, TRANSFER, REINSERT}
     AppMode appMode = AppMode.INSERT;
 
 
@@ -156,8 +156,8 @@ public class MainActivity extends AppCompatActivity {
      * already initialized, it deletes the information that was stored before.
      */
     private void initializeQueryInfo() {
-        for (String c: queryContent) {
-            c = "";
+        for (int i = 0; i < queryContent.length; i++) {
+            queryContent[i] = "";
         }
     }
 
@@ -284,6 +284,38 @@ public class MainActivity extends AppCompatActivity {
                 log("Material wird auf Gerät umgelagert");
                 initializeQueryInfo();
             }
+
+        // -------------------------- REINSERT MODE -------------------------
+        } else if (appMode == AppMode.REINSERT) {
+
+            // Parse the QR-Code inputs and fill the global queryContent
+            if (queryContents.length == 10 && queryContents[0].equals(getString(R.string.qr_material_code))) {
+                // We recognized a material
+                log("Material erkannt, speichere Materialinfos.");
+                // Save parameters
+                for (int i = 0; i < 8; ++i)
+                    queryContent[i] = queryContents[i + 1];
+                queryContent[9] = queryContents[9];
+            } else if (queryContents.length == 2 && queryContents[0].equals(getString(R.string.qr_position_code))) {
+                // We recognized a position
+                log("Position erkannt, speichere Positionsinfos.");
+                queryContent[8] = queryContents[1];
+            } else {
+                // No case matched. Something wrong with the QR-Code.
+                log("Es wurde nichts unternommen. Ungültiger QR-Code?");
+            }
+
+            // Check if all information for an UPDATE query is complete. If so, create the query.
+            for (String c: queryContent)
+                if (c == null || c.equals(""))
+                    doQuery = false;
+            if (doQuery) {
+                query = "UPDATE Material SET Position = " + queryContent[8] + " WHERE Auftragsnummer = " + queryContent[9] + ";";
+                log("Material wird auf andere Position umgelagert");
+                initializeQueryInfo();
+            }
+        } else {
+            doQuery = false;
         }
 
         // If a query is ready to be done
@@ -310,6 +342,17 @@ public class MainActivity extends AppCompatActivity {
     public void scanBarcodeInsert(View view) {
         if (appMode != AppMode.INSERT) initializeQueryInfo();
         appMode = AppMode.INSERT;
+        IntentIntegrator scanIntegrator = new IntentIntegrator(this);
+        scanIntegrator.initiateScan();
+    }
+
+    /**
+     * Triggered by UI Button. Initiates the barcode scanning for reinsertion.
+     * @param view
+     */
+    public void scanBarcodeReinsert(View view) {
+        if (appMode != AppMode.REINSERT) initializeQueryInfo();
+        appMode = AppMode.REINSERT;
         IntentIntegrator scanIntegrator = new IntentIntegrator(this);
         scanIntegrator.initiateScan();
     }
