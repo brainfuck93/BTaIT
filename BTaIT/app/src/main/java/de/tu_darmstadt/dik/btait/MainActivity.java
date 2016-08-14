@@ -91,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
      * to the queryContent (and if queryContent is full, do the query). In case appMode is DELETE
      * we will look for a material with the same Auftragsnummer as the scanned object and delete it from
      * the database. If appMode is TRANSFER we will look for a Material with the same Auftragsnummer as
-     * the scanned one and update its position to a new scanned position.
+     * the scanned one and update its position to ownPositionId.
      */
     public enum AppMode {INSERT, REMOVE, TRANSFER}
     AppMode appMode = AppMode.INSERT;
@@ -105,7 +105,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         outputLog = (TextView) findViewById(R.id.outputLog);
-        log("Application started");
+        initializePositionId();
+        log("Application is ready");
 
         queryContent = new String[10];
         initializeQueryInfo();
@@ -113,14 +114,16 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Initializes the ownPositionId attribute. First the method checks if an ID has been stored on
-     * the disk already and tries to retrieve that. If no ID can be found, an ID is request from the
+     * the disk already and tries to retrieve that. If no ID can be found, an ID is requested from the
      * server using a POST request.
      */
     private void initializePositionId() {
 
-        // First we look if a position Id was stored in the devices memory already.
+        // First we look if a position id was stored in the devices memory already.
         if (ownPositionId != 0 || tryGetPositionIdFromDisk())
             return;
+
+        log("No position ID found on disk. Trying to obtain it from server.");
 
         // If not, we get a new ID from the database
         String encodedQuery = "SELECT MAX(ID) FROM Lagerposition;";
@@ -131,18 +134,7 @@ public class MainActivity extends AppCompatActivity {
         }
         postRequestAnswer = "";
         doPostRequest("id=1338&query=" + encodedQuery);
-        int maxId = 0;
-        try {
-            maxId = Integer.valueOf(postRequestAnswer) + 1;
-            ownPositionId = maxId;
-            SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
-            SharedPreferences.Editor editor = sharedPref.edit();
-            editor.putInt("ownPositionId",ownPositionId);
-            editor.apply();
-            log("Successfully got position id from server (ownID=" + ownPositionId + ") and wrote it to disk");
-        } catch (Exception e) {
-            log("Getting position id failed. Please check the network connection or try again later");
-        }
+        // Now postRequestAnswerHandler handles the setting of the ownPositionId
     }
 
     /**
@@ -153,6 +145,7 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
         if (sharedPref.contains("ownPositionId")) {
             ownPositionId = sharedPref.getInt("ownPositionId", -1);
+            log("Position ID loaded from disk (ID="+ownPositionId+")");
             return true;
         } else
             return false;
@@ -178,7 +171,7 @@ public class MainActivity extends AppCompatActivity {
      * QR-Code must not contain semicolons except for the purpose of separation of values! Possible status-codes
      * (which have to be put as first value of the QR-Code):
      *
-     * DIK_INS_Mat:         Scan all values for insertQuery (Material and Position). Mainly for test purposes.
+     * DIK_Ins_everything:                      Scan all values for insertQuery (Material and Position). Mainly for test purposes.
      *
      * Amount of parameters:                    11
      * Valid example of query values:           'QR-Stange', 1, 'QR-Stoff', 'DEF', 14.88, 17.00, 200, '2016-07-03', 1, 654321
@@ -186,13 +179,13 @@ public class MainActivity extends AppCompatActivity {
      * Valid example of a QR-Code:              strings/qr_mat_and_pos_code;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;1;654321
      *
      *
-     * DIK_INS_Mat_Mat:     Scan Material
+     * DIK_Mat:                                 Scan Material
      *
      * Amount of parameters:                    10
      * Valid example of a QR-Code:              strings/qr_material_code;QR-Stange;1;QR-Stoff;DEF;14.88;17.00;200;2016-07-03;654321
      *
      *
-     * DIK_INS_Mat_Pos:      Scan Position
+     * DIK_Pos:                                 Scan Position
      *
      * Amount of parameters:                    2
      * Valid example of a QR-Code:              strings/qr_position_code;2
@@ -276,10 +269,7 @@ public class MainActivity extends AppCompatActivity {
                 for (int i = 0; i < 8; ++i)
                     queryContent[i] = queryContents[i + 1];
                 queryContent[9] = queryContents[9];
-            } else if (queryContents.length == 2 && queryContents[0].equals(getString(R.string.qr_position_code))) {
-                // We recognized a position
-                log("Position erkannt, speichere Positionsinfos.");
-                queryContent[8] = queryContents[1];
+                queryContent[8] = String.valueOf(ownPositionId);
             } else {
                 // No case matched. Something wrong with the QR-Code.
                 log("Es wurde nichts unternommen. Ungültiger QR-Code?");
@@ -291,7 +281,7 @@ public class MainActivity extends AppCompatActivity {
                     doQuery = false;
             if (doQuery) {
                 query = "UPDATE Material SET Position = " + queryContent[8] + " WHERE Auftragsnummer = " + queryContent[9] + ";";
-                log("Position von Material wird aktualisiert");
+                log("Material wird auf Gerät umgelagert");
                 initializeQueryInfo();
             }
         }
@@ -309,6 +299,7 @@ public class MainActivity extends AppCompatActivity {
             encodedQuery = "query=" + encodedQuery;
 
             // Do POST request
+            postRequestAnswer = "";
             doPostRequest("id=1337&" + encodedQuery);
         }
     }
@@ -404,6 +395,41 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * Handles the answer that was written to postRequestAnswer by a PostToWebpageTask.
+     */
+    private void postRequestAnswerHandler() {
+        String[] contents = postRequestAnswer.split(";");
+        if (contents.length == 2 && contents[0].equals("200")) {
+            // We got a machine readable answer containing a new value for ownPositionId
+            // We set ownPositionId and also write ownPositionId to disk space
+            int maxId = 0;
+            try {
+                maxId = Integer.parseInt(contents[1].trim());
+                ownPositionId = maxId + 1;
+                SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPref.edit();
+                editor.putInt("ownPositionId",ownPositionId);
+                editor.apply();
+                log("Successfully obtained position ID from server (ID=" + ownPositionId + ") and saved it on disk");
+            } catch (Exception e) {
+                log("Getting position id failed. There is a problem with the typecast of the device ID");
+            }
+            log("Now saving this ID to database");
+            String encodedQuery = "INSERT INTO Lagerposition VALUES("+ownPositionId+", 'User1');";
+            try {
+                encodedQuery = URLEncoder.encode(encodedQuery, "UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                log("Error with encoding the query");
+            }
+            postRequestAnswer = "";
+            doPostRequest("id=1337&query=" + encodedQuery);
+
+        } else if (contents.length > 0) {
+            log("Answer from POST request was: \n\n" + postRequestAnswer + "\n");
+        }
+    }
+
+    /**
      * Output msg into the app log console together with a time.
      * @param msg The message to be printed.
      */
@@ -430,7 +456,8 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(String result) {
-            log("POST Request successful. Answer was: \n\n" + result + "\n");
+            postRequestAnswer = result;
+            postRequestAnswerHandler();
         }
 
         @Override
@@ -446,7 +473,7 @@ public class MainActivity extends AppCompatActivity {
             // Add request header
             con.setRequestMethod("POST");
 
-            String updateMsg = sdf.format(new Date()) + " Trying POST Request:\n";
+            String updateMsg = sdf.format(new Date()) + " Trying POST Request\n";
 
             // Send post request
             con.setDoOutput(true);
@@ -457,7 +484,7 @@ public class MainActivity extends AppCompatActivity {
 
             int responseCode = con.getResponseCode();
 
-            updateMsg += sdf.format(new Date()) + " The response code is: " + responseCode + "\n";
+            updateMsg += sdf.format(new Date()) + " The HTTP response code is: " + responseCode + "\n";
             publishProgress(updateMsg);
 
             InputStream is = con.getInputStream();
@@ -544,7 +571,7 @@ public class MainActivity extends AppCompatActivity {
                 // Starts the query
                 conn.connect();
                 int response = conn.getResponseCode();
-                updateMsg += sdf.format(new Date()) + " The response code is: " + response + "\n";
+                updateMsg += sdf.format(new Date()) + " The HTTP response code is: " + response + "\n";
                 publishProgress(updateMsg);
                 is = conn.getInputStream();
 

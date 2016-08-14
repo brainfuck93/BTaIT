@@ -61,7 +61,6 @@ function post_request_handler($connection) {
 	// echo "Message was: id=".$_POST["id"]." \n"; // DEBUG
 	if (isset($_POST["query"])) {
 		$sqlStmt = $_POST["query"];
-		echo "Query recognized. Query is: \n$sqlStmt \nExecuting... \n";
 		if ($connection->query($sqlStmt)) {
 			echo "Query operation successfull \n";
 		} else {
