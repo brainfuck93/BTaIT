@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
     AppMode appMode = AppMode.INSERT;
 
 
-    // Global variable test area (this should be empty if this is a release -------
+    // Global variable test area (this should be empty if this is a release) ------
     // Test area over -------------------------------------------------------------
 
     @Override
