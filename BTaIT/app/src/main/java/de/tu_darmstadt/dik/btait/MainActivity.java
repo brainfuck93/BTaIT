@@ -451,14 +451,14 @@ public class MainActivity extends AppCompatActivity {
                 ownPositionId = maxId + 1;
                 SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
                 SharedPreferences.Editor editor = sharedPref.edit();
-                editor.putInt("ownPositionId",ownPositionId);
+                editor.putInt("ownPositionId", ownPositionId);
                 editor.apply();
                 log("Successfully obtained position ID from server (ID=" + ownPositionId + ") and saved it on disk");
             } catch (Exception e) {
                 log("Getting position id failed. There is a problem with the typecast of the device ID");
             }
             log("Now saving this ID to database");
-            String encodedQuery = "INSERT INTO Lagerposition VALUES("+ownPositionId+", 'User1');";
+            String encodedQuery = "INSERT INTO Lagerposition VALUES("+ownPositionId+", 'UserID', 'D');";
             try {
                 encodedQuery = URLEncoder.encode(encodedQuery, "UTF-8");
             } catch (UnsupportedEncodingException e) {
