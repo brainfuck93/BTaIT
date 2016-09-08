@@ -121,8 +121,13 @@
 					// Wenn es eine Änderung bei der Position von einem Material gab,
 					// werden alle Materialien neu gezeichnet
 					if (matJsonData != data) {
-						var matToPosAssignment = jQuery.parseJSON(data);
-						var keys = Object.keys(matToPosAssignment);
+						var keys, matToPosAssignment;
+						if (data === "") {
+							keys = [];
+						} else {
+							matToPosAssignment = jQuery.parseJSON(data);
+							keys = Object.keys(matToPosAssignment);
+						}
 						$('#maintable tr, #devtable tr').children().each(function() {
 							var matCountPerPos = 0;
 							// Anzahl der Materialien für Lagerposition (this) herausfinden
@@ -178,7 +183,7 @@
 						$('#maintable tr').children().each(function() {
 							lagerPosCounter++;
 						});
-						$('#warehouse h2').append(': ' + lagerPosCounter);
+						$('#warehouse h2').text('Lagerpositionen: ' + lagerPosCounter);
 					}
 					lagerPosData = data;
 				},
@@ -208,7 +213,7 @@
 						$('#devtable tr').children().each(function() {
 							deviceCounter++;
 						});
-						$('#devices h2').append(': ' + deviceCounter);
+						$('#devices h2').text('Geräte: ' + deviceCounter);
 					}
 					devPosData = data;
 				},
@@ -237,23 +242,23 @@
 	</div>
 	<div id="contentwrapper">
 		<div id="warehouse">
-			<h2>Lagerpositionen</h2>
+			<h2></h2>
 			<table id="maintable">
 				<tr>
-					<td>1</td>
-					<td>2</td>
+					<td></td>
+					<td></td>
 				</tr>
 				<tr>
-					<td>3</td>
-					<td>4</td>
+					<td></td>
+					<td></td>
 				</tr>
 			</table>
 		</div>
 		<div id="devices">
-			<h2>Geräte</h2>
+			<h2></h2>
 			<table id="devtable">
-				<tr><td>Device 1</td></tr>
-				<tr><td>Device 2</td></tr>
+				<tr><td></td></tr>
+				<tr><td></td></tr>
 			</table>
 		</div>
 	</div>
